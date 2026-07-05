@@ -4,28 +4,9 @@ const SUPABASE_KEY = 'sb_publishable_gTVJUhExideVlDb7AzCcuQ_Oc6u-i-G';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- STATE MANAGEMENT ---
-let currentLang = 'en';
 let currentUser = null;
 let isSignUp = false;
-
-const i18n = {
-    en: {
-        getStarted: "Get Started",
-        login: "Login",
-        signup: "Sign Up",
-        feedTitle: "Sms Tamu",
-        postBtn: "Post",
-        langBtn: "SW"
-    },
-    sw: {
-        getStarted: "Anza Sasa",
-        login: "Ingia",
-        signup: "Jisajili",
-        feedTitle: "Sms Tamu",
-        postBtn: "Tuma",
-        langBtn: "EN"
-    }
-};
+let currentCategory = 'all';
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
@@ -53,20 +34,12 @@ function showSection(id) {
     }
 }
 
-// --- LANGUAGE LOGIC ---
-function toggleLanguage() {
-    currentLang = currentLang === 'en' ? 'sw' : 'en';
-    document.getElementById('langBtn').innerText = i18n[currentLang].langBtn;
-    
-    document.querySelectorAll('.i18n').forEach(el => {
-        el.innerText = el.getAttribute(`data-${currentLang}`);
-    });
-}
-
 // --- AUTHENTICATION ---
 async function handleAuth() {
     const email = document.getElementById('auth-email').value;
     const password = document.getElementById('auth-password').value;
+
+    if(!email || !password) return alert("Please fill in all fields.");
 
     try {
         let result;
@@ -84,6 +57,7 @@ async function handleAuth() {
 
         if (result.error) throw result.error;
         currentUser = result.data.user;
+        loadUserData();
         showSection('home-screen');
     } catch (err) {
         alert(err.message);
@@ -97,6 +71,17 @@ function toggleAuthMode() {
 }
 
 // --- POSTS CRUD ---
+function filterPosts(category, btnElement) {
+    currentCategory = category;
+    
+    // Manage active state of tabs
+    const buttons = document.querySelectorAll('.category-tabs button');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    if (btnElement) btnElement.classList.add('active');
+    
+    loadPosts(category);
+}
+
 async function loadPosts(category = 'all') {
     let query = supabase.from('posts').select(`*, profiles(username, avatar_url, is_verified, role)`).eq('status', 'approved');
     
@@ -114,25 +99,36 @@ function renderPosts(posts) {
     const container = document.getElementById('posts-feed');
     container.innerHTML = '';
     
+    if (posts.length === 0) {
+        container.innerHTML = '<p style="text-align:center; color:gray; margin-top: 20px;">No messages found.</p>';
+        return;
+    }
+
     posts.forEach(post => {
         const isVIP = post.category === 'VIP';
+        const profile = post.profiles || {}; 
+        const username = profile.username || 'Anonymous';
+        const avatar = profile.avatar_url || 'https://via.placeholder.com/40';
+        const verifiedBadge = profile.is_verified ? '<i class="fa-solid fa-circle-check verified-badge"></i>' : '';
+        const vipBadge = isVIP ? '<i class="fa-solid fa-star vip-badge"></i>' : '';
+
         const card = document.createElement('div');
         card.className = `post-card ${isVIP ? 'vip-card' : ''}`;
         card.innerHTML = `
             <div class="card-header">
-                <img class="avatar-sm" src="${post.profiles.avatar_url || 'https://via.placeholder.com/40'}">
+                <img class="avatar-sm" src="${avatar}" alt="${username}">
                 <div>
-                    <span class="username">${post.profiles.username}</span>
-                    ${post.profiles.is_verified ? '<i class="fa-solid fa-circle-check verified-badge"></i>' : ''}
-                    ${isVIP ? '<i class="fa-solid fa-star vip-badge"></i>' : ''}
+                    <span class="username">${username}</span>
+                    ${verifiedBadge}
+                    ${vipBadge}
                 </div>
             </div>
             <div class="card-body" onclick="${isVIP ? 'showVIPModal()' : ''}">
-                ${isVIP ? '<i>********** Message Kuntu Locked **********</i>' : post.content}
+                ${isVIP ? '<i>********** Premium Message Locked **********</i>' : post.content}
             </div>
             <div class="card-actions">
-                <span onclick="likePost(${post.id})"><i class="fa-regular fa-heart"></i> ${post.likes_count}</span>
-                <span onclick="copyText('${post.content}')"><i class="fa-regular fa-copy"></i></span>
+                <span onclick="likePost(${post.id})"><i class="fa-regular fa-heart"></i> ${post.likes_count || 0}</span>
+                <span onclick="copyText('${post.content.replace(/'/g, "\\'")}')"><i class="fa-regular fa-copy"></i></span>
                 <span onclick="sharePost(${post.id})"><i class="fa-solid fa-share-nodes"></i></span>
             </div>
         `;
@@ -144,14 +140,35 @@ async function submitPost() {
     const content = document.getElementById('post-text').value;
     const category = document.getElementById('post-category').value;
     
+    if (!content) return alert("Message cannot be empty.");
+
     const { error } = await supabase.from('posts').insert([
         { user_id: currentUser.id, content, category, status: 'approved' }
     ]);
     
     if (!error) {
+        document.getElementById('post-text').value = '';
         closeModal('post-modal');
-        loadPosts();
+        loadPosts(currentCategory);
+    } else {
+        alert("Failed to submit post.");
     }
+}
+
+async function likePost(postId) {
+    // In a real app, track user likes to prevent multi-liking.
+    const { data: post } = await supabase.from('posts').select('likes_count').eq('id', postId).single();
+    if (post) {
+        const newCount = (post.likes_count || 0) + 1;
+        await supabase.from('posts').update({ likes_count: newCount }).eq('id', postId);
+        loadPosts(currentCategory);
+    }
+}
+
+function sharePost(postId) {
+    const url = window.location.href.split('?')[0] + `?post=${postId}`;
+    navigator.clipboard.writeText(url);
+    alert("Post link copied to clipboard!");
 }
 
 // --- GLOBAL CHAT ---
@@ -164,8 +181,9 @@ async function initChatListener() {
 }
 
 async function sendChatMessage() {
+    if (!currentUser) return alert("Please log in to chat.");
     const msg = document.getElementById('chat-input').value;
-    if (!msg) return;
+    if (!msg.trim()) return;
     
     await supabase.from('global_chat').insert([{ user_id: currentUser.id, message: msg }]);
     document.getElementById('chat-input').value = '';
@@ -182,18 +200,25 @@ function appendChatMessage(data) {
 
 // --- PROFILE & ADMIN ---
 async function loadUserData() {
+    if (!currentUser) return;
     const { data } = await supabase.from('profiles').select('*').eq('id', currentUser.id).single();
     if (data) {
-        document.getElementById('profile-username').innerText = data.username;
+        document.getElementById('profile-username').innerText = data.username || 'User';
         document.getElementById('profile-img').src = data.avatar_url || 'https://via.placeholder.com/100';
-        if (data.role === 'admin') document.getElementById('admin-entry').classList.remove('hidden');
+        document.getElementById('profile-bio').innerText = data.bio || 'Sweet messages lover.';
+        
+        if (data.role === 'admin') {
+            document.getElementById('admin-entry').classList.remove('hidden');
+        }
     }
 }
 
 async function uploadAvatar(event) {
     const file = event.target.files[0];
+    if (!file) return;
+
     const fileExt = file.name.split('.').pop();
-    const filePath = `${currentUser.id}.${fileExt}`;
+    const filePath = `${currentUser.id}_${Date.now()}.${fileExt}`;
 
     let { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, { upsert: true });
 
@@ -201,6 +226,36 @@ async function uploadAvatar(event) {
         const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
         await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', currentUser.id);
         loadUserData();
+        loadPosts(currentCategory); // refresh posts to show new avatar
+    } else {
+        alert("Failed to upload avatar.");
+    }
+}
+
+async function saveProfileChanges() {
+    const newUsername = document.getElementById('edit-username').value;
+    const newBio = document.getElementById('edit-bio').value;
+
+    const updates = {};
+    if (newUsername) updates.username = newUsername;
+    if (newBio) updates.bio = newBio;
+
+    const { error } = await supabase.from('profiles').update(updates).eq('id', currentUser.id);
+    
+    if (!error) {
+        loadUserData();
+        closeModal('edit-profile-modal');
+    }
+}
+
+function postAnnouncement() {
+    const announcementInput = document.getElementById('admin-announcement');
+    const banner = document.getElementById('announcement-banner');
+    
+    if (announcementInput.value.trim() !== '') {
+        banner.innerText = `📢 ${announcementInput.value}`;
+        announcementInput.value = '';
+        alert('Announcement broadcasted to top feed.');
     }
 }
 
@@ -208,5 +263,5 @@ async function uploadAvatar(event) {
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function showVIPModal() { openModal('vip-modal'); }
-function copyText(txt) { navigator.clipboard.writeText(txt); alert("Copied!"); }
+function copyText(txt) { navigator.clipboard.writeText(txt); alert("Message copied to clipboard!"); }
 async function logout() { await supabase.auth.signOut(); location.reload(); }
