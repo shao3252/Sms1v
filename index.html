@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sms Tamu | Sweet Messages</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+    <div id="app-container">
+        <!-- Language Switcher -->
+        <div class="lang-switcher">
+            <button onclick="toggleLanguage()" id="langBtn">SW</button>
+        </div>
+
+        <!-- Section: Landing Screen -->
+        <section id="landing-screen" class="view">
+            <div class="hero">
+                <i class="fa-solid fa-heart bounce logo-icon"></i>
+                <h1 class="brand-name">Sms Tamu</h1>
+                <p id="landing-desc" class="i18n" data-en="Share the sweetest romantic messages." data-sw="Shiriki meseji tamu za mahaba.">Share the sweetest romantic messages.</p>
+                <button class="btn-primary pulse" onclick="showSection('auth-screen')" id="get-started-btn">Get Started</button>
+            </div>
+        </section>
+
+        <!-- Section: Auth Screen -->
+        <section id="auth-screen" class="view hidden">
+            <div class="auth-card">
+                <h2 id="auth-title">Login</h2>
+                <input type="email" id="auth-email" placeholder="Email">
+                <input type="password" id="auth-password" placeholder="Password">
+                <button class="btn-primary" onclick="handleAuth()" id="auth-submit">Continue</button>
+                <p onclick="toggleAuthMode()" id="auth-toggle">Don't have an account? Sign Up</p>
+            </div>
+        </section>
+
+        <!-- Section: Main Feed -->
+        <section id="home-screen" class="view hidden">
+            <div class="top-bar">
+                <h2 id="feed-title">Sms Tamu</h2>
+                <div id="announcement-banner"></div>
+            </div>
+            <div class="category-tabs">
+                <button class="active" onclick="filterPosts('all')">All</button>
+                <button onclick="filterPosts('Msamaha')">Msamaha</button>
+                <button onclick="filterPosts('Kusifia')">Kusifia</button>
+                <button onclick="filterPosts('VIP')" class="vip-tab">Message Kuntu</button>
+            </div>
+            <div id="posts-feed" class="feed-container"></div>
+        </section>
+
+        <!-- Section: Chat -->
+        <section id="chat-screen" class="view hidden">
+            <div class="chat-header">Global Chat</div>
+            <div id="chat-messages" class="chat-container"></div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Type a message...">
+                <button onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </section>
+
+        <!-- Section: Profile -->
+        <section id="profile-screen" class="view hidden">
+            <div class="profile-header">
+                <div class="avatar-wrapper">
+                    <img id="profile-img" src="https://via.placeholder.com/100" alt="Avatar">
+                    <label for="avatar-upload" class="camera-icon"><i class="fa-solid fa-camera"></i></label>
+                    <input type="file" id="avatar-upload" hidden accept="image/*" onchange="uploadAvatar(event)">
+                </div>
+                <h3 id="profile-username">Username</h3>
+                <p id="profile-bio">Sweet messages lover.</p>
+                <div class="profile-stats">
+                    <div><b id="follower-count">0</b> Followers</div>
+                    <div><b id="following-count">0</b> Following</div>
+                </div>
+                <button class="btn-outline" onclick="openModal('edit-profile-modal')">Edit Profile</button>
+                <button class="btn-outline logout-btn" onclick="logout()">Logout</button>
+            </div>
+            <div id="admin-entry" class="hidden">
+                <button class="btn-admin" onclick="showSection('admin-screen')">Admin Dashboard</button>
+            </div>
+        </section>
+
+        <!-- Section: Admin Dashboard -->
+        <section id="admin-screen" class="view hidden">
+            <button class="back-btn" onclick="showSection('profile-screen')"><i class="fa-solid fa-arrow-left"></i></button>
+            <h2>Admin Panel</h2>
+            <div class="admin-grid">
+                <div class="admin-card">
+                    <h4>Global Announcement</h4>
+                    <input type="text" id="admin-announcement" placeholder="What's new?">
+                    <button onclick="postAnnouncement()">Post</button>
+                </div>
+                <div id="pending-posts" class="admin-card">
+                    <h4>Pending Approval</h4>
+                    <div id="pending-list"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom Navigation -->
+        <nav id="bottom-nav" class="hidden">
+            <div class="nav-item" onclick="showSection('home-screen')"><i class="fa-solid fa-house"></i></div>
+            <div class="nav-item" onclick="alert('Search Coming Soon')"><i class="fa-solid fa-magnifying-glass"></i></div>
+            <div class="nav-item add-post" onclick="openModal('post-modal')"><i class="fa-solid fa-plus"></i></div>
+            <div class="nav-item" onclick="showSection('chat-screen')"><i class="fa-solid fa-comment-dots"></i></div>
+            <div class="nav-item" onclick="showSection('profile-screen')"><i class="fa-solid fa-user"></i></div>
+        </nav>
+    </div>
+
+    <!-- Modals -->
+    <div id="post-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Create Post</h3>
+            <textarea id="post-text" placeholder="Write something sweet..."></textarea>
+            <select id="post-category">
+                <option value="General">Mengineyo</option>
+                <option value="Msamaha">Kuomba Msamaha</option>
+                <option value="Kusifia">Kusifia</option>
+                <option value="VIP">VIP (Kuntu)</option>
+            </select>
+            <button class="btn-primary" onclick="submitPost()">Post</button>
+            <button class="btn-text" onclick="closeModal('post-modal')">Cancel</button>
+        </div>
+    </div>
+
+    <div id="vip-modal" class="modal hidden">
+        <div class="modal-content gold-border">
+            <h3 class="gold-text">Fungua Kuntu 💎</h3>
+            <p>Access premium romantic messages for only 1,000 Tsh.</p>
+            <input type="text" placeholder="Phone Number (M-Pesa/Tigo)">
+            <button class="btn-gold">Pay & Unlock</button>
+            <button class="btn-text" onclick="closeModal('vip-modal')">Close</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        window.onerror = function(msg, url, line) {
+            alert("Error: " + msg + "\nLine: " + line);
+            return false;
+        };
+    </script>
+</body>
+</html>
